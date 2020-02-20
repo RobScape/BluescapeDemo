@@ -1,0 +1,168 @@
+#
+import requests
+from requests.exceptions import HTTPError
+import datetime
+from os import listdir
+from os.path import isfile, join
+import pprint
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename
+
+
+
+'''
+This script:
+1) Creates a canvas
+2) Uploads the content from a specific folder into the canvas: documents and images
+3) Upload method for images and documents: MULTIPART FORM DATA
+
+Required modules:
+    requests 2.22.0
+'''
+
+###ADD YOUR OWN TOKEN BELOW###
+token = input('Enter your token')
+
+
+####ADD YOUR OWN WORKSPACE ID BELOW###
+
+if __name__ == "__main__":
+    portal = 'https://api.apps.us.bluescape.com'
+    workspace_uid = input("Paste your Workspace ID: ")
+    user_uid = ''
+    API_version = 'v2'
+    API_endpoint = '/' + API_version + '/workspaces/' + workspace_uid + '/elements/canvas'
+    parameters = ''
+
+    #canvas_x = 5000
+    #canvas_y = 2500
+
+    #width and height of actual canvas
+    #canvas_width = 3000
+    #canvas_height = 1500
+
+    #date_time = datetime.datetime.now()
+
+    #x and y location of top corner of actual canvas.  width and heigth  are  size of canvas.
+    
+    x = input("Input X coordinate for canvas:")
+    y = input("Input Y coordinate for canvas:")
+    width = input("Input width of canvas:")
+    height = input("Input height of canvas:")
+    name = input("Name your canvas:")
+    borderColor = input("Enter Red, Green, Blue, or Yellow:")
+    data_load = {
+            'x': x,
+            'y': y,
+            'width': width,
+            'height': height,
+            'name': name,
+            'borderColor': borderColor
+        }
+
+    #width and height of actual canvas
+    canvas_width = int(width)
+    canvas_height = int(height)
+
+    date_time = datetime.datetime.now()
+
+    # IMPORTANT: canvas has to be bigger than document/object coming inside, or the object does NOT stick to the canvas
+
+    the_request = requests.post(
+        portal + API_endpoint,
+        headers={"Authorization": "Bearer " + token,
+                    "Content-Type": "application/json"
+                    },
+        json=data_load,
+        params=parameters
+    )
+
+    json_response = the_request.json()
+
+    pprint.pprint(json_response)
+
+    canvas_id = json_response['canvas']['id']
+
+    pprint.pprint(json_response)
+
+    # Add the files in the folder into the Canvas
+    # /v2/workspaces/<workspace_uid>/elements/canvas/<canvas_id>/documents
+    # /v2/workspaces/<workspace_uid>/elements/canvas/<canvas_id>/images
+
+    ###ADD YOUR OWN FILEPATH###'/Users/robdeutsche/Desktop/SouthCanyon/'##
+    mypath = input("Enter the filepath to the folder you wish to upload.  Ex users/yourname/....")
+    #Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+    #mypath = askopenfilename() # show an "Open" dialog box and return the path to the selected file
+    #print(mypath)
+    onlyfiles = [f for f in listdir(mypath) if isfile(join(mypath, f))]
+
+    API_endpoint = '/v2/workspaces/' + workspace_uid + '/elements/canvas/' + canvas_id + '/documents'
+
+    # Canvas coordinates are from its top left corner, relative from there
+    xx = 100
+    yy = 200
+
+    # Remove unwanted filenames
+    #if onlyfiles.index(".DS_Store") > 0:
+        #onlyfiles.remove(".DS_Store")
+
+    # Supported: png, jpeg, gif, tiff, pdf, docx, pptx, xlsx, doc, ppt, xls
+
+    document_extensions = ['pdf','docx','pptx','xlsx','doc','ppt','xls']
+    image_extensions    = ['jpg','png','jpeg','tiff']
+    not_supported_extensions = ['txt']
+
+    for this_file in onlyfiles:
+
+        print("\nFile: ", this_file)
+
+        file_extension = this_file.split('.')[1]
+
+        full_path_file = mypath + this_file
+
+
+        file_type_key = ''
+
+        is_supported_extension = True
+
+        if file_extension in document_extensions:
+            API_endpoint = '/v2/workspaces/' + workspace_uid + '/elements/canvas/' + canvas_id + '/documents'
+            file_type_key = 'document'
+        elif file_extension in image_extensions:
+            API_endpoint = '/v2/workspaces/' + workspace_uid + '/elements/canvas/' + canvas_id + '/images'
+            file_type_key = 'image'
+        else:
+            is_supported_extension = False
+
+        if is_supported_extension:
+
+            the_params = {
+                'x': xx,
+                'y': yy,
+                'scale': 1,
+            }
+
+            print("Data_load:", str(the_params))
+            print(portal + API_endpoint)
+
+            # NOTE for this library: do not use "Content-Type" in headers, does not need to be set to 'multipart/form-data', it is set automatically
+            the_request = requests.post(
+                portal + API_endpoint,
+                headers={"Authorization": "Bearer " + token
+                            },
+                params=the_params,
+                files={ file_type_key : (this_file, open(full_path_file, "rb")) }
+            )
+
+            json_response = the_request.json()
+
+            # pprint.pprint(json_response) # uncomment if you want to see response
+
+            delta = 600
+            if the_request.status_code == 200:
+                yy += delta
+
+            # Check if the objects's position is outside the canvas. If so, start in new column
+            if yy > canvas_height:
+                yy = 200
+                xx += delta  
